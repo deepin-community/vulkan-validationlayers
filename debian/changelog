@@ -1,5 +1,197 @@
-template-repository (1.0-1) unstable; urgency=medium
+vulkan-validationlayers (1.3.239.0-2) unstable; urgency=medium
 
-  * Initial release
+  * Don't build utils lib as a shared library, ship the static one in -dev.
 
- -- Tsic404 <liuheng@deepin.org>  Sat, 28 Jan 2023 13:46:49 +0800
+ -- Timo Aaltonen <tjaalton@debian.org>  Sun, 26 Feb 2023 11:09:09 +0200
+
+vulkan-validationlayers (1.3.239.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-depends.
+  * patches: Refreshed.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 06 Feb 2023 16:59:28 +0200
+
+vulkan-validationlayers (1.3.236.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-depends.
+  * patches: Drop upstreamed patch.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 24 Jan 2023 17:48:01 +0200
+
+vulkan-validationlayers (1.3.231.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-depends.
+  * patches: Fix search for spirv/unified1.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 08 Nov 2022 11:47:24 +0200
+
+vulkan-validationlayers (1.3.224.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * patches: Refreshed.
+  * control: Bump build-deps of glslang-dev, libvulkan-dev and spirv-
+    tools.
+  * rules: Don't specify the vulkan headers dir, the build can find it
+    now.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 25 Aug 2022 19:35:59 +0300
+
+vulkan-validationlayers (1.3.216.0-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #1013529)
+  * control: Bump libvulkan-dev build-dep.
+  * control: Bump build-depends for glslang-dev, spirv-headers and spirv-
+    tools.
+  * fix-mips-ftbfs.diff: Dropped, not needed anymore.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 04 Jul 2022 12:52:08 +0300
+
+vulkan-validationlayers (1.3.204.1-2) unstable; urgency=medium
+
+  * rules: Fix location of spirv-headers.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 07 Apr 2022 13:54:10 +0300
+
+vulkan-validationlayers (1.3.204.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * fix-build.diff: Dropped, upstream.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 15 Mar 2022 11:57:37 +0200
+
+vulkan-validationlayers (1.3.204.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-depends.
+  * patches: Refreshed.
+  * fix-build.diff: Fix a build regression.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 16 Feb 2022 18:42:31 +0200
+
+vulkan-validationlayers (1.2.198.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump libvulkan-dev build-dependency.
+  * fix-mips-ftbfs.diff: Fix build on mips*. (Closes: #998294)
+  * control: Bump spirv-headers, -tools build-deps.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 07 Jan 2022 13:55:58 +0200
+
+vulkan-validationlayers (1.2.189.0-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Update shared library patch (Closes: #993994).
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Wed, 06 Oct 2021 14:05:10 +0900
+
+vulkan-validationlayers (1.2.189.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump libvulkan-dev build-dep.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 08 Sep 2021 18:44:09 +0300
+
+vulkan-validationlayers (1.2.182.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump libvulkan-dev build-dep.
+  * rules: Set USE_ROBIN_HOOD_HASHING=OFF.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 01 Sep 2021 16:38:50 +0300
+
+vulkan-validationlayers (1.2.162.0-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #978195)
+  * control: Bump libvulkan-dev, spirv-tools build-depends.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 07 Jan 2021 10:23:59 +0200
+
+vulkan-validationlayers (1.2.154.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * dev: Don't install xxhash files, depend on libxxhash-dev.
+    (Closes: #970556)
+  * control: Bump build-dep on libvulkan-dev.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 13 Oct 2020 08:48:16 +0300
+
+vulkan-validationlayers (1.2.148.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * rules: Specify header and vulkan registry dirs.
+  * control: Bump libvulkan-dev and spirv-tools build-deps.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 16 Sep 2020 11:30:53 +0300
+
+vulkan-validationlayers (1.2.141.0-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #963289)
+  * control: Add spirv-headers to build-depends.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 23 Jun 2020 11:25:16 +0300
+
+vulkan-validationlayers (1.2.135.0-1) unstable; urgency=medium
+
+  * New upstream release. (LP: #1871754)
+  * control: Bump build-dep on glslang, libvulkan-dev and spirv-tools.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 10 Apr 2020 07:22:19 +0300
+
+vulkan-validationlayers (1.2.131.2-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-deps on libvulkan-dev, spirv-tools.
+  * control: Migrate to debhelper-compat, bump to 12.
+  * control: Bump policy to 4.5, no changes.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 12 Feb 2020 11:56:15 +0200
+
+vulkan-validationlayers (1.1.126.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump build-deps on libvulkan-dev, spirv-tools.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Nov 2019 16:08:33 +0200
+
+vulkan-validationlayers (1.1.114.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump libvulkan-dev build-dep.
+  * control: Bump glslang-dev and spirv-tools build-deps.
+  * rules: Set BUILD_LAYER_SUPPORT_FILES=ON to build headers in this
+    version.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 11 Sep 2019 15:32:23 +0300
+
+vulkan-validationlayers (1.1.101.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * watch: Use proper tag names.
+  * control: Bump glslang-dev and spirv-tools build-depends.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 12 Mar 2019 11:37:05 +0200
+
+vulkan-validationlayers (1.1.97-2) unstable; urgency=medium
+
+  * copyright: Updated. (Closes: #919686)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Sat, 19 Jan 2019 10:14:16 +0200
+
+vulkan-validationlayers (1.1.97-1) experimental; urgency=medium
+
+  * New upstream release.
+  * watch: Use new tag naming.
+  * control: Bump libvulkan-dev, glslang-dev and spirv-tools build-deps.
+  * use-mxgot-for-mips64.patch: Dropped, upstream.
+  * fix_shared.patch: Refreshed.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Sun, 13 Jan 2019 20:06:28 +0200
+
+vulkan-validationlayers (1.1.82.0-1) experimental; urgency=medium
+
+  * Initial packaging, split from old src:vulkan.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 21 Sep 2018 12:46:07 +0300
