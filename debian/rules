@@ -1,4 +1,30 @@
 #!/usr/bin/make -f
 
+# see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
+
 %:
-	dh $@
+	dh $@ --builddirectory=build/
+
+override_dh_clean:
+	dh_clean
+	rm -rf scripts/__pycache__
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DBUILD_LAYER_SUPPORT_FILES=ON \
+	-DGLSLANG_INSTALL_DIR=/usr/bin \
+	-DSPIRV_HEADERS_INCLUDE_DIR=/usr/include \
+	-DUSE_ROBIN_HOOD_HASHING=OFF \
+	-DVulkanRegistry_DIR=/usr/share/vulkan/registry
+
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/tmp
+
+	rm -f debian/tmp/usr/include/vulkan/*.cpp
+	rm -f debian/tmp/usr/include/xxhash.*
+
+override_dh_missing:
+	dh_missing --fail-missing
