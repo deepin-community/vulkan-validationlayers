@@ -6,7 +6,9 @@ This is an "up-to-speed" document for writing tests to validate the Validation L
 
 ## Rule #1
 
-The first rule is to make sure you are actually running the tests on the built version of the Validation Layers you want. If you have the Vulkan SDK installed, then you will have a pre-built version of the Validation Layers set in your path and those are probably not the version you want to test.
+The first rule is to make sure you are actually running the tests on the built version of the Validation Layers you want. Set the environment variable `VK_LOADER_DEBUG` to `layer` and check that the output of the tests report that the path of the validation layer matches what is expected.
+
+The tests automatically set `VK_LAYER_PATH` to the validation layer in the build tree. However if you wish to use a different validation layer than the one that was built, or if you wish to use multiple layers in the tests at the same time, you must set `VK_LAYER_PATH` or `VK_ADD_LAYER_PATH` to include each path to the desired layers, including the validation layer.
 
 Make sure you have the correct `VK_LAYER_PATH` set on Windows or Linux (on Android the layers are baked into the APK so there is nothing to worry about)
 
@@ -29,16 +31,16 @@ The `VkRenderFramework` class is "base class" that abstract most things in order
 For most tests, it is as simple as going
 
 ```cpp
-ASSERT_NO_FATAL_FAILURE(Init());
+RETURN_IF_SKIP(Init());
 
 // or
 
-ASSERT_NO_FATAL_FAILURE(InitFramework());
-ASSERT_NO_FATAL_FAILURE(InitState());
+RETURN_IF_SKIP(InitFramework());
+RETURN_IF_SKIP(InitState());
 
 // For Best Practices tests
-ASSERT_NO_FATAL_FAILURE(InitBestPracticesFramework());
-ASSERT_NO_FATAL_FAILURE(InitState());
+RETURN_IF_SKIP(InitBestPracticesFramework());
+RETURN_IF_SKIP(InitState());
 ```
 
 to set it up. This will create the `VkInstance` and `VkDevice` for you.
@@ -54,17 +56,14 @@ Here is an example of adding `VK_KHR_sampler_ycbcr_conversion` with all the exte
 ```cpp
 // Setup extensions, including dependent instance and device extensions. This call should be made before any call to InitFramework
 AddRequiredExtensions(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+AddRequiredFeature(vkt::Feature:: samplerYcbcrConversion);
 
-//  Among other things, this will create the VkInstance and VkPhysicalDevice that will be used for the test.
-ASSERT_NO_FATAL_FAILURE(InitFramework());
-
-// Check that all extensions and their dependencies were enabled successfully
-if (!AreRequiredExtensionsEnabled()) {
-    GTEST_SKIP() << RequiredExtensionsNotSupported() << " not supported";
-}
+// Among other things, this will create the VkInstance and VkPhysicalDevice that will be used for the test.
+// Also will check that all extensions and their dependencies were enabled successfully
+RETURN_IF_SKIP(InitFramework());
 
 // Finish initializing state, including creating the VkDevice (whith extensions added) that will be used for the test
-ASSERT_NO_FATAL_FAILURE(InitState());
+RETURN_IF_SKIP(InitState());
 ```
 
 The pattern breaks down to
@@ -81,31 +80,21 @@ Sometimes it is worth checking for an extension, but still running the parts of 
 ```cpp
 AddRequiredExtensions(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 AddOptionalExtensions(VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME);
-ASSERT_NO_FATAL_FAILURE(Init());
+// Check required (not optional) extensions are still supported
+RETURN_IF_SKIP(Init());
 
 // need to wait until after phyiscal device creation to know if it was enabled
 const bool copy_commands2 = IsExtensionsEnabled(VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME);
 
-// Check required (not optional) extensions are still supported
-if (!AreRequiredExtensionsEnabled()) {
-    GTEST_SKIP() << RequiredExtensionsNotSupported() << " not supported";
-}
-
-// If the optional extension has a command, it will need a vkGetDeviceProcAddr call
-PFN_vkCmdCopyBuffer2KHR vkCmdCopyBuffer2KHR = nullptr;
-if (copy_commands2) {
-    vkCmdCopyBuffer2KHR = (PFN_vkCmdCopyBuffer2KHR)vk::GetDeviceProcAddr(m_device->handle(), "vkCmdCopyBuffer2KHR");
-}
-
 // Validate core copy command
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, vuid);
+m_errorMonitor->SetDesiredError(vuid);
 vk::CmdCopyBuffer( /* */ );
 m_errorMonitor->VerifyFound();
 
 // optional test using VK_KHR_copy_commands2
 if (copy_commands2) {
-    m_errorMonitor->SetDesiredFailureMsg(kErrorBit, vuid);
-    vkCmdCopyBuffer2KHR( /* */  );
+    m_errorMonitor->SetDesiredError(vuid);
+    vk::CmdCopyBuffer2KHR( /* */  );
     m_errorMonitor->VerifyFound();
 }
 ```
@@ -118,31 +107,37 @@ If a certain version of Vulkan is needed a test writer can call
 
 ```cpp
 SetTargetApiVersion(VK_API_VERSION_1_1);
-ASSERT_NO_FATAL_FAILURE(InitFramework());
+// Will skip if the supported instance version is not high enough, but actual device supported version may be lower
+RETURN_IF_SKIP(InitFramework());
 ```
 
-Later in the test it can also be checked
+Later in the test the actual Vulkan version supported by the device can be checked
+
 ```cpp
 if (DeviceValidationVersion() >= VK_API_VERSION_1_1) {
-    // ...
+    // Only can be ran on Vulkan 1.0 or 1.1
 }
 ```
+
+### Promoted extensions
+
+The test framework now automatically handles extensions promoted to core versions by not enabling the extensions if the target instance Vulkan version (set through `SetTargetApiVersion`) or the Vulkan version supported by the device (queriable using `DeviceValidationVersion`) already includes the instance or device extension's functionality, respectively.
+This applies to both requirements requested using `AddRequiredExtensions` or `AddOptionalExtensions`, as well as optional requirements checked using `IsExtensionsEnabled`.
+
+In order to enforce enabling extensions even when they are included in the effective Vulkan version (which should only be necessary for very specific test cases), the test case can call the `AllowPromotedExtensions` function.
 
 ### Getting Function Pointers
 
-A common case for checking the version is in order to find how to correctly get extension function pointers.
+When using a version that has promoted the function, one can just directly use the call.
+
+In the case of enabling the extensions, all the functions for those extensions will call `vkGetDeviceProcAddr` automatically.
 
 ```cpp
-// Create aliased function pointers for 1.0 and 1.1+ contexts
-PFN_vkBindImageMemory2KHR vkBindImageMemory2Function = nullptr;
-if (DeviceValidationVersion() >= VK_API_VERSION_1_1) {
-    vkBindImageMemory2Function = vk::BindImageMemory2;
-} else {
-    vkBindImageMemory2Function = reinterpret_cast<PFN_vkBindImageMemory2KHR>(vk::GetDeviceProcAddr(m_device->handle(), "vkBindImageMemory2KHR"));
-}
+// If VK_API_VERSION_1_1 or later is set
+vk::BindImageMemory2(...);
 
-// later in code
-vkBindImageMemory2Function(device(), 1, &bind_image_info);
+// If VK_KHR_bind_memory2 is enabled
+vk::BindImageMemory2KHR(...);
 ```
 
 ## Error Monitor
@@ -156,26 +151,26 @@ The few common patterns that will cover 99% of cases are:
 - **By default**, all Vulkan API calls are expected to succeed. In the past, one would have to "wrap" API calls in `ExpectSuccess`/`VerifyNotFound` to ensure an API call did not trigger any errors. This is no longer the case. e.g.,
 ```cpp
 // m_errorMonitor->ExpectSuccess(); <- implicit
-vk::CreateSampler(m_device->device(), &sci, nullptr, &samplers[0]);
+vk::CreateSampler(device(), &sci, nullptr, &samplers[0]);
 // m_errorMonitor->VerifyNoutFound(); <- implicit
 ```
 The `ExpectSuccess` and `VerifyNotFound` calls are now implicit.
 - For checking a call that invokes a VUID error
 ```cpp
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkSamplerCreateInfo-addressModeU-01646");
+m_errorMonitor->SetDesiredError("VUID-VkSamplerCreateInfo-addressModeU-01646");
 // The following API call is expected to trigger 01646 and _only_ 01646
-vk::CreateSampler(m_device->device(), &sci, NULL, &BadSampler);
+vk::CreateSampler(device(), &sci, NULL, &BadSampler);
 m_errorMonitor->VerifyFound();
 
 // All calls after m_errorMonitor->VerifyFound() are expected to not trigger any errors. e.g., the following API call should succeed with no validation errors being triggered.
-vk::CreateImage(m_device->device(), &ci, nullptr, &mp_image);
+vk::CreateImage(device(), &ci, nullptr, &mp_image);
 
 ```
 - When it is possible another VUID will be triggered that you are not testing. This usually happens due to making something invalid can cause a chain effect causing other things to be invalid as well.
     - Note: If the `SetUnexpectedError` is never called it will not fail the test
 ```cpp
 m_errorMonitor->SetUnexpectedError("VUID-VkImageMemoryRequirementsInfo2-image-01590");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkImageMemoryRequirementsInfo2-image-02280");
+m_errorMonitor->SetDesiredError("VUID-VkImageMemoryRequirementsInfo2-image-02280");
 vkGetImageMemoryRequirements2Function(device(), &mem_req_info2, &mem_req2);
 m_errorMonitor->VerifyFound();
 ```
@@ -183,9 +178,9 @@ m_errorMonitor->VerifyFound();
 - When you expect multpile VUID to be triggered. This is also be a case if you expect the same VUID to be called twice.
     - Note: If both VUID are not found the test will fail
 ```cpp
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00905");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00907");
-vk::CmdBeginRenderPass(m_commandBuffer->handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+m_errorMonitor->SetDesiredError("VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00905");
+m_errorMonitor->SetDesiredError("VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00907");
+vk::CmdBeginRenderPass(m_command_buffer.handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 m_errorMonitor->VerifyFound();
 ```
 
@@ -193,8 +188,8 @@ m_errorMonitor->VerifyFound();
     - Note: The start of the test might already have a boolean that checks for extension support
 ```cpp
 const char* vuid = IsExtensionsEnabled(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME) ? "VUID-vkCmdCopyImage-dstImage-01733" : "VUID-vkCmdCopyImage-dstImage-01733";
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, vuid);
-m_commandBuffer->CopyImage(image_2.image(), VK_IMAGE_LAYOUT_GENERAL, image_1.image(), VK_IMAGE_LAYOUT_GENERAL, 1, &copy_region);
+m_errorMonitor->SetDesiredError(vuid);
+m_command_buffer.CopyImage(image_2.image(), VK_IMAGE_LAYOUT_GENERAL, image_1.image(), VK_IMAGE_LAYOUT_GENERAL, 1, &copy_region);
 m_errorMonitor->VerifyFound();
 ```
 
@@ -202,12 +197,12 @@ m_errorMonitor->VerifyFound();
 - Keep it simple. Try to make each test as small and concise as possible.
 - Avoid testing VUIDs in "batches" such as:
 ```cpp
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferBeginInfo-flags-06003");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferInheritanceRenderingInfo-colorAttachmentCount-06004");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferInheritanceRenderingInfo-variableMultisampleRate-06005");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferInheritanceRenderingInfo-depthAttachmentFormat-06007");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferInheritanceRenderingInfo-multiview-06008");
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-VkCommandBufferInheritanceRenderingInfo-viewMask-06009");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferBeginInfo-flags-06003");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferInheritanceRenderingInfo-colorAttachmentCount-06004");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferInheritanceRenderingInfo-variableMultisampleRate-06005");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferInheritanceRenderingInfo-depthAttachmentFormat-06007");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferInheritanceRenderingInfo-multiview-06008");
+m_errorMonitor->SetDesiredError("VUID-VkCommandBufferInheritanceRenderingInfo-viewMask-06009");
 ...
 vk::BeginCommandBuffer(secondary_cmd_buffer, &cmd_buffer_begin_info);
 m_errorMonitor->VerifyFound();
@@ -223,11 +218,19 @@ used to make it obvious).
 VkImageSubresource subresource{};
 subresource.aspectMask = VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT;
 VkSubresourceLayout layout{};
-m_errorMonitor->SetDesiredFailureMsg(kErrorBit, "VUID-vkGetImageSubresourceLayout-tiling-02271");
+m_errorMonitor->SetDesiredError("VUID-vkGetImageSubresourceLayout-tiling-09433");
 vk::GetImageSubresourceLayout(m_device->handle(), image.handle(), &subresource, &layout);
 m_errorMonitor->VerifyFound();
 ```
 Here it is obvious that the `aspectMask` parameter is the cause of 02271.
+
+### Viewing VU Messages
+
+When `SetDesiredError` is used, nothing is displayed if the test is successful. To see the messages regardless use `--print-vu`
+
+```bash
+./tests/vk_layer_validation_tests --print-vu --gtest_filter=Tests
+```
 
 ## Device Profiles API
 
@@ -236,7 +239,7 @@ There are times a test writer will want to test a case where an implementation r
 ### Device Profile Format Feature
 Here is an example of how To enable it to allow overriding format features (limits are the same idea, just different function names):
 ```cpp
-ASSERT_NO_FATAL_FAILURE(Init());
+RETURN_IF_SKIP(Init());
 
 // Load required functions
 PFN_vkSetPhysicalDeviceFormatPropertiesEXT fpvkSetPhysicalDeviceFormatPropertiesEXT = nullptr;
@@ -263,8 +266,8 @@ if (!LoadDeviceProfileLayer(fpvkSetPhysicalDeviceFormatProperties2EXT, fpvkGetOr
     GTEST_SKIP() << "Failed to load device profile layer.";
 }
 
-auto fmt_props_3 = LvlInitStruct<VkFormatProperties3>();
-auto fmt_props = LvlInitStruct<VkFormatProperties2>(&fmt_props_3);
+VkFormatProperties3 fmt_props_3 = vku::InitStructHelper();
+VkFormatProperties2 fmt_props = vku::InitStructHelper(&fmt_props_3);
 
 // Removes unwanted support
 fpvkGetOriginalPhysicalDeviceFormatProperties2EXT(gpu(), image_format, &fmt_props);
@@ -283,7 +286,7 @@ fpvkSetPhysicalDeviceFormatProperties2EXT(gpu(), image_format, fmt_props);
 When using the device profile layer for limits, the test maybe need to call `vkSetPhysicalDeviceLimitsEXT` prior to creating the `VkDevice` for some validation state tracking
 
 ```cpp
-ASSERT_NO_FATAL_FAILURE(InitFramework());
+RETURN_IF_SKIP(InitFramework());
 
 // Load required functions
 PFN_vkSetPhysicalDeviceLimitsEXT fpvkSetPhysicalDeviceLimitsEXT = nullptr;
@@ -297,5 +300,5 @@ fpvkGetOriginalPhysicalDeviceLimitsEXT(gpu(), &props.limits);
 props.limits.maxPushConstantsSize = 16; // example
 fpvkSetPhysicalDeviceLimitsEXT(gpu(), &props.limits);
 
-ASSERT_NO_FATAL_FAILURE(InitState());
+RETURN_IF_SKIP(InitState());
 ```

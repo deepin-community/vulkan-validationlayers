@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD041 -->
-<!-- Copyright 2015-2022 LunarG, Inc. -->
+<!-- Copyright 2015-2024 LunarG, Inc. -->
 [![Khronos Vulkan][1]][2]
 
 [1]: https://vulkan.lunarg.com/img/Vulkan_100px_Dec16.png "https://www.khronos.org/vulkan/"
@@ -22,14 +22,9 @@ For an overview of how to configure layers, refer to the [Layers Overview and Co
 Synchronization Validation settings are managed by configuring the Validation Layer. These settings are described in the
 [VK_LAYER_KHRONOS_validation](https://vulkan.lunarg.com/doc/sdk/latest/windows/khronos_validation_layer.html#user-content-layer-details) document.
 
-Synchronization Validation settings can also be enabled and configured using the [Vulkan Configurator](https://vulkan.lunarg.com/doc/sdk/latest/windows/vkconfig.html) included with the Vulkan SDK.
+The `khronos_validation.validate_sync` configuration variable enables Synchronization Validation. Additional configuration settings have this naming pattern: `khronos_validation.syncval_*`.
 
-The alpha release of QueueSubmit time validation can be enabled using the [Vulkan Configurator](https://vulkan.lunarg.com/doc/sdk/latest/windows/vkconfig.html), or by adding:
-
-`VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT`
-
-to the "Enables" as documented in [VK_LAYER_KHRONOS_validation](https://vulkan.lunarg.com/doc/sdk/latest/windows/khronos_validation_layer.html#user-content-layer-details). ***NOTE*:** changes to configuration of this feature between alpha, and full release should be expected.
-
+Synchronization Validation settings can also be managed using the [Vulkan Configurator](https://vulkan.lunarg.com/doc/sdk/latest/windows/vkconfig.html) included with the Vulkan SDK.
 
 ## Synchronization Validation Functionality
 
@@ -97,21 +92,22 @@ The pipelined and multi-threaded nature of Vulkan makes it particularly importan
 - Load/Store/Resolve operations within Subpasses.
 - ExecuteCommands detection of hazard from or with secondary command buffers
 
-### Alpha Functionality
-
-- QueueSubmit (excluding QueueSubmit2, for alpha release) hazard detection
+- QueueSubmit/QueueSubmit2 time hazard detection
 - Semaphore (binary only) and Fence synchronization operations/effects
 - Device and Queue WaitIdle support
+- Dynamic Rendering support
 
 ### Known Limitations
 
 - Does not include implementation of multi-view renderpass support.
 - Host set event not supported.
 -  Memory access checks not suppressed for VK_CULL_MODE_FRONT_AND_BACK.
-- Does not include component granularity access tracking.
+- Does not include component granularity access tracking, or correctly support swizzling.
+- Indirectly accessed (indirect/indexed) buffers validated at *binding* granularity. (Every valid location assumed to be accessed.)
 - Host synchronization not supported, except Fences (above).
 - Timeline Semaphore not supported
-- Swapchain memory/operations not tracked
+- Queue family ownership transfer not supported
+- Hazards related to memory aliasing are not detected properly
 
 ## Typical Synchronization Validation Usage
 
