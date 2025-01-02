@@ -13,12 +13,11 @@ Make sure `-DBUILD_TESTS` was passed into the CMake command when generating the 
 
 The tests are grouped into different categories. Some of the main test categories are:
 
-- `VkLayerTest` - General tests that expect the Validation Layers to trigger an error
-    - Also known as "negative tests"
-- `VkPositiveLayerTest` - Tests that make sure Validation isn't accidentally triggering an error
-- `VkBestPracticesLayerTest` - Tests the [best practice layer](../docs/best_practices.md)
-- `VkGpuAssistedLayerTest` - Test [GPU-Assisted Validation](../docs/gpu_validation.md)
-- `VkPortabilitySubsetTest` - Test [VK_KHR_portability_subset validation](../docs/portability_validation.md)
+- Negative testing
+    - General tests that expect the Validation Layers to trigger an error
+- Positive testing
+    - Make sure Validation isn't accidentally triggering an error
+    - Commonly created to prevent bug regressions
 
 ## Implicit Layers note
 
@@ -31,10 +30,11 @@ export VK_LOADER_LAYERS_DISABLE=VK_LAYER_OBS_HOOK
 
 ## Running Test on Linux
 
-**IMPORTANT** Make sure you have the correct `VK_LAYER_PATH` set on Linux
+`VK_LAYER_PATH` is set automatically by the tests. However if you wish to use a different validation layer than the one that was built, or if you wish to use multiple layers in the tests at the same time, you must set `VK_LAYER_PATH` to include each path to the desired layers, including the validation layer.
 
+To set `VK_LAYER_PATH` with multiple layers:
 ```bash
-export VK_LAYER_PATH=/path/to/Vulkan-ValidationLayers/build/layers/
+export VK_LAYER_PATH=/path/to/Vulkan-ValidationLayers/build/layers/:/path/to/other/layers/
 ```
 
 To run the tests
@@ -64,20 +64,13 @@ cd build-android
 # Optional
 adb uninstall com.example.VulkanLayerValidationTests
 
-adb install -r bin/VulkanLayerValidationTests.apk
+adb install -r -g --no-incremental bin/VulkanLayerValidationTests.apk
 
-# Runs all test
-adb shell am start com.example.VulkanLayerValidationTests/android.app.NativeActivity
+# Runs all test (And print the VUIDs)
+adb shell am start -a android.intent.action.MAIN -c android-intent.category.LAUNCH -n com.example.VulkanLayerValidationTests/android.app.NativeActivity --es args --print-vu
 
 # Run test with gtest_filter
 adb shell am start -a android.intent.action.MAIN -c android-intent.category.LAUNCH -n com.example.VulkanLayerValidationTests/android.app.NativeActivity --es args --gtest_filter="*AndroidHardwareBuffer*"
-```
-
-Alternatively, you can use the test_APK script to install and run the layer
-validation tests:
-
-```bash
-test_APK.sh -s <serial number> -p <plaform name> -f <gtest_filter>
 ```
 
 To view to logging while running in a separate terminal run
@@ -103,17 +96,17 @@ You will have to direct the loader from Vulkan-Loader to the MoltenVK ICD:
 export VK_DRIVER_FILES=<path to MoltenVK repository>/Package/Latest/MoltenVK/macOS/MoltenVK_icd.json
 ```
 
-## Running Tests on MockICD and Profiles layer
+## Running Tests on Test Driver and Profiles layer
 
-To allow a much higher coverage of testing the Validation Layers a test writer can use the Profile layer. [More details here](https://vulkan.lunarg.com/doc/view/1.3.204.1/windows/profiles_layer.html), but the main idea is the layer intercepts the Physical Device queries allowing testing of much more device properties. The Mock ICD is a "null driver" that is used to handle the Vulkan calls as the Validation Layers mostly only care about input "input" of the driver. If your tests relies on the "output" of the driver (such that a driver/implementation is correctly doing what it should do with valid input), then it might be worth looking into the [Vulkan CTS instead](https://github.com/KhronosGroup/Vulkan-Guide/blob/master/chapters/vulkan_cts.md).
+To allow a much higher coverage of testing the Validation Layers a test writer can use the Profile layer. [More details here](https://vulkan.lunarg.com/doc/view/1.3.204.1/windows/profiles_layer.html), but the main idea is the layer intercepts the Physical Device queries allowing testing of much more device properties. The `VVL Test ICD` is a "null driver" that is used to handle the Vulkan calls as the Validation Layers mostly only care about input "input" of the driver. If your tests relies on the "output" of the driver (such that a driver/implementation is correctly doing what it should do with valid input), then it might be worth looking into the [Vulkan CTS instead](https://github.com/KhronosGroup/Vulkan-Guide/blob/main/chapters/vulkan_cts.md).
 
-The Profile Layer can be found in the Vulkan SDK, otherwise, they will need to be cloned from [Vulkan Profiles](https://github.com/KhronosGroup/Vulkan-Profiles). The MockICD can be built from source in [Vulkan-Tools](https://github.com/KhronosGroup/Vulkan-Tools/tree/master/icd)
+The Profile Layer can be found in the Vulkan SDK, otherwise, they will need to be cloned from [Vulkan Profiles](https://github.com/KhronosGroup/Vulkan-Profiles). The Validation Layers test builds a test driver (Also known as a `MockICD` or a null driver).
 
-**NOTE**: While using the MockICD and Profiles layer the test will not be able to use Device Profiles API (`VK_LAYER_LUNARG_device_profile_api`) at the same time.
+**NOTE**: While using the Test Driver and Profiles layer the test will not be able to use Device Profiles API (`VK_LAYER_LUNARG_device_profile_api`) at the same time.
 - If a feature is needed, it can be adjusted in the profile JSON
 - Allowing both adds complexity due to the order the layers must be in, while adding little over value to test coverage
 
-Here is an example of setting up and running the Profile layer with MockICD on a Linux environment
+Here is an example of setting up and running the Profile layer with Test Driver on a Linux environment
 ```bash
 export VULKAN_SDK=/path/to/vulkansdk
 export VVL=/path/to/Vulkan-ValidationLayers
@@ -126,9 +119,9 @@ export VK_LAYER_PATH=$VVL/build/layers/
 export VK_LAYER_PATH=$VK_LAYER_PATH:$VULKAN_SDK/etc/vulkan/explicit_layer.d/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VULKAN_SDK/lib/
 
-# Set MockICD to be driver
-export VK_DRIVER_FILES=/path/to/Vulkan-Tools/build/icd/VkICD_mock_icd.json
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/Vulkan-Tools/build/icd/
+# Set Test Driver to be driver
+export VK_DRIVER_FILES=$VVL/build/tests/icd/VVL_Test_ICD.json
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$VVL/build/tests/icd
 
 # Set Layers, the order here is VERY IMPORTANT otherwise the test will see the
 # profile layer but the layer won't see it and have a different value
@@ -138,12 +131,12 @@ export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles
 #    These are generated from https://github.com/KhronosGroup/Vulkan-Profiles
 #    Also can found on https://vulkan.gpuinfo.org/ and downloaded from any device
 # A set of profiles for CI are in the tests/device_profiles folder
-export VK_KHRONOS_PROFILES_PROFILE_FILE=$VVL/tests/device_profiles/profile.json
+export VK_KHRONOS_PROFILES_PROFILE_FILE=$VVL/tests/device_profiles/max_profile.json
 
 # Expose all the parts of the profile layer
 export VK_KHRONOS_PROFILES_SIMULATE_CAPABILITIES=SIMULATE_API_VERSION_BIT,SIMULATE_FEATURES_BIT,SIMULATE_PROPERTIES_BIT,SIMULATE_EXTENSIONS_BIT,SIMULATE_FORMATS_BIT,SIMULATE_QUEUE_FAMILY_PROPERTIES_BIT
 
-# MockICD exposes VK_KHR_portability_subset but most tests are not testing for it
+# Test Driver exposes VK_KHR_portability_subset but most tests are not testing for it
 export VK_KHRONOS_PROFILES_EMULATE_PORTABILITY=false
 
 # By default the Profile Layer logs warnings that mostly likely won't be useful for
@@ -153,3 +146,47 @@ export VK_KHRONOS_PROFILES_DEBUG_REPORTS=DEBUG_REPORT_ERROR_BIT
 # Running tests just as normal
 $VVL/build/tests/vk_layer_validation_tests --gtest_filter=TestName
 ```
+
+### Max Profile
+
+`tests/device_profiles/max_profile.json` is a custom file designed to allow as much testing as possible.
+
+It would be ideal to generate this similarly to the layer generated in [the Profile Layer repo](https://github.com/KhronosGroup/Vulkan-Profiles/blob/main/scripts/gen_profiles_layer.py), but the goal is to make sure as many tests are running in CI as possible.
+
+This file will **never** fully cover all tests because some require certain properties/extension to be **both** enabled and disabled. The goal is to get as close to 100% coverage as possible.
+
+### Address Sanitization (ASAN)
+
+ASAN (Address Sanitization) has become a part of our CI process to ensure high quality code.
+
+`-D VVL_ENABLE_ASAN=ON` will enable address sanitization in the build.
+
+You could also set the needed compiler flags via environment variables:
+```bash
+export CFLAGS=-fsanitize=address
+export CXXFLAGS=-fsanitize=address
+export LDFLAGS=-fsanitize=address
+```
+
+- https://clang.llvm.org/docs/AddressSanitizer.html
+- https://github.com/google/sanitizers/wiki/AddressSanitizer
+- https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html
+- https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170
+
+### Thread Sanitization (TSAN)
+
+TSAN (Thread Sanitization) has become a part of our CI process to detect data race bugs.
+
+```bash
+# NOTE: ThreadSanitizer generally requires all code to be compiled with -fsanitize=thread to prevent false positives.
+# https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual#non-instrumented-code
+export CFLAGS=-fsanitize=thread
+export CXXFLAGS=-fsanitize=thread
+export LDFLAGS=-fsanitize=thread
+```
+
+- https://clang.llvm.org/docs/ThreadSanitizer.html
+- https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual
+- https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html
+
+NOTE: `MSVC` currently doesn't offer any form of thread sanitization.

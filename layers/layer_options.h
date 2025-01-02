@@ -1,6 +1,6 @@
-/* Copyright (c) 2022 The Khronos Group Inc.
- * Copyright (c) 2022 Valve Corporation
- * Copyright (c) 2022 LunarG, Inc.
+/* Copyright (c) 2022-2024 The Khronos Group Inc.
+ * Copyright (c) 2022-2024 Valve Corporation
+ * Copyright (c) 2022-2024 LunarG, Inc.
  * Modifications Copyright (C) 2020 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,96 +14,103 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * Author: Mark Lobodzinski <mark@lunarg.com>
- * Author: John Zulauf <jzulauf@lunarg.com>
- * Author: Nadav Geva <nadav.geva@amd.com>
  */
 
-#include "chassis.h"
+#pragma once
+#include <array>
+#include <vector>
+#include <string>
+#include <cstdint>
+#include <vulkan/vulkan.h>
+#include <vulkan/utility/vk_struct_helper.hpp>
+#include "containers/custom_containers.h"
 
-extern std::vector<std::pair<uint32_t, uint32_t>> custom_stype_info;
+#define OBJECT_LAYER_NAME "VK_LAYER_KHRONOS_validation"
 
-// Process validation features, flags and settings specified through extensions, a layer settings file, or environment variables
+enum ValidationCheckDisables {
+    VALIDATION_CHECK_DISABLE_COMMAND_BUFFER_STATE,
+    VALIDATION_CHECK_DISABLE_OBJECT_IN_USE,
+    VALIDATION_CHECK_DISABLE_QUERY_VALIDATION,
+    VALIDATION_CHECK_DISABLE_IMAGE_LAYOUT_VALIDATION,
+};
 
-typedef struct {
+enum ValidationCheckEnables {
+    VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ARM,
+    VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_AMD,
+    VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_IMG,
+    VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_NVIDIA,
+    VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ALL,
+};
+
+// CHECK_DISABLED and CHECK_ENABLED vectors are containers for bools that can opt in or out of specific classes of validation
+// checks. Enum values can be specified via the vk_layer_settings.txt config file or at CreateInstance time via the
+// VK_EXT_validation_features extension that can selectively disable or enable checks.
+enum DisableFlags {
+    command_buffer_state,
+    object_in_use,
+    query_validation,
+    image_layout_validation,
+    object_tracking,
+    core_checks,
+    thread_safety,
+    stateless_checks,
+    handle_wrapping,
+    shader_validation,
+    shader_validation_caching,
+    // Insert new disables above this line
+    kMaxDisableFlags,
+};
+
+enum EnableFlags {
+    gpu_validation,
+    gpu_validation_reserve_binding_slot,
+    best_practices,
+    vendor_specific_arm,
+    vendor_specific_amd,
+    vendor_specific_img,
+    vendor_specific_nvidia,
+    debug_printf_validation,
+    sync_validation,
+    // Insert new enables above this line
+    kMaxEnableFlags,
+};
+
+using CHECK_DISABLED = std::array<bool, kMaxDisableFlags>;
+using CHECK_ENABLED = std::array<bool, kMaxEnableFlags>;
+
+// General settings to be used by all parts of the Validation Layers
+struct GlobalSettings {
+    bool fine_grained_locking = true;
+
+    bool debug_disable_spirv_val = false;
+};
+
+class DebugReport;
+struct GpuAVSettings;
+struct SyncValSettings;
+struct MessageFormatSettings;
+struct ConfigAndEnvSettings {
+    // Matches up with what is passed down to VK_EXT_layer_settings
     const char *layer_description;
-    const void *pnext_chain;
+
+    // Used so we can find things like VkValidationFeaturesEXT
+    const VkInstanceCreateInfo *create_info;
+
+    // Find grain way to turn off/on parts of validation
     CHECK_ENABLED &enables;
     CHECK_DISABLED &disables;
-    std::vector<uint32_t> &message_filter_list;
-    int32_t *duplicate_message_limit;
-    bool *fine_grained_locking;
-} ConfigAndEnvSettings;
 
-static const layer_data::unordered_map<std::string, VkValidationFeatureDisableEXT> VkValFeatureDisableLookup = {
-    {"VK_VALIDATION_FEATURE_DISABLE_SHADERS_EXT", VK_VALIDATION_FEATURE_DISABLE_SHADERS_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_THREAD_SAFETY_EXT", VK_VALIDATION_FEATURE_DISABLE_THREAD_SAFETY_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_API_PARAMETERS_EXT", VK_VALIDATION_FEATURE_DISABLE_API_PARAMETERS_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_OBJECT_LIFETIMES_EXT", VK_VALIDATION_FEATURE_DISABLE_OBJECT_LIFETIMES_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_CORE_CHECKS_EXT", VK_VALIDATION_FEATURE_DISABLE_CORE_CHECKS_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT", VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_SHADER_VALIDATION_CACHE_EXT", VK_VALIDATION_FEATURE_DISABLE_SHADER_VALIDATION_CACHE_EXT},
-    {"VK_VALIDATION_FEATURE_DISABLE_ALL_EXT", VK_VALIDATION_FEATURE_DISABLE_ALL_EXT},
+    // Settings for DebugReport
+    DebugReport *debug_report;
+
+    GlobalSettings* global_settings;
+
+    // Individual settings for different internal layers
+    GpuAVSettings *gpuav_settings;
+    SyncValSettings *syncval_settings;
 };
+const std::vector<std::string> &GetDisableFlagNameHelper();
+const std::vector<std::string> &GetEnableFlagNameHelper();
 
-static const layer_data::unordered_map<std::string, VkValidationFeatureEnableEXT> VkValFeatureEnableLookup = {
-    {"VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT", VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT},
-    {"VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT",
-     VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT},
-    {"VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT", VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT},
-    {"VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT", VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT},
-    {"VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT", VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT},
-};
-
-static const layer_data::unordered_map<std::string, VkValidationFeatureEnable> VkValFeatureEnableLookup2 = {
-    {"VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION", VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION},
-};
-
-static const layer_data::unordered_map<std::string, ValidationCheckDisables> ValidationDisableLookup = {
-    {"VALIDATION_CHECK_DISABLE_COMMAND_BUFFER_STATE", VALIDATION_CHECK_DISABLE_COMMAND_BUFFER_STATE},
-    {"VALIDATION_CHECK_DISABLE_OBJECT_IN_USE", VALIDATION_CHECK_DISABLE_OBJECT_IN_USE},
-    {"VALIDATION_CHECK_DISABLE_QUERY_VALIDATION", VALIDATION_CHECK_DISABLE_QUERY_VALIDATION},
-    {"VALIDATION_CHECK_DISABLE_IMAGE_LAYOUT_VALIDATION", VALIDATION_CHECK_DISABLE_IMAGE_LAYOUT_VALIDATION},
-};
-
-static const layer_data::unordered_map<std::string, ValidationCheckEnables> ValidationEnableLookup = {
-    {"VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ARM", VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ARM},
-    {"VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_AMD", VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_AMD},
-    {"VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_IMG", VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_IMG},
-    {"VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_NVIDIA", VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_NVIDIA},
-    {"VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ALL", VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ALL},
-    {"VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT",
-     VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT},
-};
-
-// This should mirror the 'DisableFlags' enumerated type
-static const std::vector<std::string> DisableFlagNameHelper = {
-    "VALIDATION_CHECK_DISABLE_COMMAND_BUFFER_STATE",               // command_buffer_state,
-    "VALIDATION_CHECK_DISABLE_OBJECT_IN_USE",                      // object_in_use,
-    "VALIDATION_CHECK_DISABLE_QUERY_VALIDATION",                   // query_validation,
-    "VALIDATION_CHECK_DISABLE_IMAGE_LAYOUT_VALIDATION",            // image_layout_validation,
-    "VK_VALIDATION_FEATURE_DISABLE_OBJECT_LIFETIMES_EXT",          // object_tracking,
-    "VK_VALIDATION_FEATURE_DISABLE_CORE_CHECKS_EXT",               // core_checks,
-    "VK_VALIDATION_FEATURE_DISABLE_THREAD_SAFETY_EXT",             // thread_safety,
-    "VK_VALIDATION_FEATURE_DISABLE_API_PARAMETERS_EXT",            // stateless_checks,
-    "VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT",            // handle_wrapping,
-    "VK_VALIDATION_FEATURE_DISABLE_SHADERS_EXT",                   // shader_validation,
-    "VK_VALIDATION_FEATURE_DISABLE_SHADER_VALIDATION_CACHING_EXT"  // shader_validation_caching
-};
-
-// This should mirror the 'EnableFlags' enumerated type
-static const std::vector<std::string> EnableFlagNameHelper = {
-    "VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT",                       // gpu_validation,
-    "VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT",  // gpu_validation_reserve_binding_slot,
-    "VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT",                     // best_practices,
-    "VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_ARM",                         // vendor_specific_arm,
-    "VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_AMD",                         // vendor_specific_amd,
-    "VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_IMG",                         // vendor_specific_img,
-    "VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_NVIDIA",                      // vendor_specific_nvidia,
-    "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT",                       // debug_printf,
-    "VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION",             // sync_validation,
-    "VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT",     // queuesubmit time sync_validation,
-};
-
+// Process validation features, flags and settings specified through extensions, a layer settings file, or environment variables
 void ProcessConfigAndEnvSettings(ConfigAndEnvSettings *settings_data);

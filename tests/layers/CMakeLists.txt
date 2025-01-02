@@ -17,7 +17,7 @@
 add_library(VkLayer_device_profile_api MODULE)
 
 target_sources(VkLayer_device_profile_api PRIVATE
-    ${VVL_SOURCE_DIR}/layers/vk_layer_extension_utils.cpp
+    ${VVL_SOURCE_DIR}/layers/utils/vk_layer_extension_utils.cpp
     device_profile_api.cpp
     vk_lunarg_device_profile_api_layer.h
 )
@@ -29,12 +29,33 @@ if (WIN32)
 elseif(APPLE)
     set_target_properties(VkLayer_device_profile_api PROPERTIES SUFFIX ".dylib")
 else()
-    target_link_options(VkLayer_device_profile_api PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/libVkLayer_device_profile_api.map,-Bsymbolic)
+    target_link_options(VkLayer_device_profile_api PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/libVkLayer_device_profile_api.map)
 endif()
 
-target_include_directories(VkLayer_device_profile_api PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
+target_compile_options(VkLayer_device_profile_api PRIVATE "$<IF:$<CXX_COMPILER_ID:MSVC>,/wd4100,-Wno-unused-parameter>")
+
+if(${CMAKE_CXX_COMPILER_ID} MATCHES "(GNU|Clang)")
+    target_compile_options(VkLayer_device_profile_api PRIVATE
+        -Wno-sign-compare
+        -Wno-shorten-64-to-32
+        -Wno-missing-field-initializers
+    )
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(VkLayer_device_profile_api PRIVATE
+            -Wno-sign-conversion
+            -Wno-implicit-int-conversion
+        )
+    endif()
+elseif(MSVC)
+    target_compile_options(VkLayer_device_profile_api PRIVATE
+        /wd4458 # hiding class member
+        /wd4457 # hiding function parameter
+        /wd4702 # unreachable code
+        /wd4389 # signed/unsigned mismatch
+    )
+endif()
+
+target_include_directories(VkLayer_device_profile_api PRIVATE .)
 
 set(INTERMEDIATE_FILE "${CMAKE_CURRENT_BINARY_DIR}/profiling.json")
 
@@ -46,12 +67,10 @@ else()
     set(JSON_LIBRARY_PATH "./libVkLayer_device_profile_api.so")
 endif()
 
-set(JSON_API_VERSION ${VulkanHeaders_VERSION})
-
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_device_profile_api.json.in" ${INTERMEDIATE_FILE} @ONLY)
 
 # It's much simpler for development if the device profile layer is in the same location as the validation layer
 add_custom_command(TARGET VkLayer_device_profile_api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:VkLayer_device_profile_api> $<TARGET_FILE_DIR:VkLayer_khronos_validation>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTERMEDIATE_FILE} "$<TARGET_FILE_DIR:VkLayer_khronos_validation>/VkLayer_device_profile_api.json"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:VkLayer_device_profile_api> $<TARGET_FILE_DIR:vvl>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTERMEDIATE_FILE} "$<TARGET_FILE_DIR:vvl>/VkLayer_device_profile_api.json"
 )
