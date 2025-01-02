@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2015-2022 The Khronos Group Inc.
- * Copyright (c) 2015-2022 Valve Corporation
- * Copyright (c) 2015-2022 LunarG, Inc.
- * Copyright (C) 2015-2022 Google Inc.
+ * Copyright (c) 2015-2024 The Khronos Group Inc.
+ * Copyright (c) 2015-2024 Valve Corporation
+ * Copyright (c) 2015-2024 LunarG, Inc.
+ * Copyright (C) 2015-2024 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * Author: Arda Coskunses <arda@lunarg.com>
- * Author: Tony Barbour <tony@LunarG.com>
- * Author: Mark Lobodzinski <mark@lunarg.com>
  */
 #include <string.h>
-#include <stdlib.h>
 #include <cassert>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
 
-#include "vk_layer_data.h"
-#include "vk_dispatch_table_helper.h"
-#include "vk_layer_utils.h"
+#include "containers/custom_containers.h"
+#include "generated/vk_dispatch_table_helper.h"
+#include "utils/vk_layer_utils.h"
 #include "vk_lunarg_device_profile_api_layer.h"
 
 namespace device_profile_api {
@@ -104,7 +99,7 @@ VKAPI_ATTR void VKAPI_CALL SetPhysicalDeviceFormatPropertiesEXT(VkPhysicalDevice
 
     // Need to set in the case a test uses SetPhysicalDeviceFormatProperties1() functions but because it is a 1.3 device and
     // the validation code will call GetPhysicalDeviceFormatProperties2() expecting VkFormatProperties3 to be filled
-    VkFormatProperties3 fmt_props_3 = LvlInitStruct<VkFormatProperties3>();
+    VkFormatProperties3 fmt_props_3 = vku::InitStructHelper();
     fmt_props_3.linearTilingFeatures = static_cast<VkFormatFeatureFlags2>(newProperties.linearTilingFeatures);
     fmt_props_3.optimalTilingFeatures = static_cast<VkFormatFeatureFlags2>(newProperties.optimalTilingFeatures);
     fmt_props_3.bufferFeatures = static_cast<VkFormatFeatureFlags2>(newProperties.bufferFeatures);
@@ -125,7 +120,7 @@ VKAPI_ATTR void VKAPI_CALL SetPhysicalDeviceFormatProperties2EXT(VkPhysicalDevic
     layer_data *phy_dev_data = GetLayerDataPtr(physicalDevice, device_profile_api_dev_data_map);
 
     memcpy(&(phy_dev_data->format_properties_map[format]), &(newProperties.formatProperties), sizeof(VkFormatProperties));
-    VkFormatProperties3 *fmt_props_3 = LvlFindModInChain<VkFormatProperties3>(newProperties.pNext);
+    VkFormatProperties3 *fmt_props_3 = vku::FindStructInPNextChain<VkFormatProperties3>(newProperties.pNext);
     if (fmt_props_3) {
         memcpy(&(phy_dev_data->format_properties3_map[format]), fmt_props_3, sizeof(VkFormatProperties3));
     }
@@ -172,7 +167,7 @@ VKAPI_ATTR void VKAPI_CALL SetPhysicalDeviceProperties2EXT(VkPhysicalDevice phys
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator,
                                               VkInstance *pInstance) {
-    VkLayerInstanceCreateInfo *chain_info = get_chain_info(pCreateInfo, VK_LAYER_LINK_INFO);
+    VkLayerInstanceCreateInfo *chain_info = GetChainInfo(pCreateInfo, VK_LAYER_LINK_INFO);
     std::lock_guard<std::mutex> lock(global_lock);
 
     assert(chain_info->u.pLayerInfo);
@@ -278,7 +273,7 @@ VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFormatProperties(VkPhysicalDevice ph
 
 VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice, VkFormat format,
                                                               VkFormatProperties2 *pProperties) {
-    VkFormatProperties3 *fmt_props_3 = LvlFindModInChain<VkFormatProperties3>(pProperties->pNext);
+    VkFormatProperties3 *fmt_props_3 = vku::FindStructInPNextChain<VkFormatProperties3>(pProperties->pNext);
     std::lock_guard<std::mutex> lock(global_lock);
     layer_data *phy_dev_data = GetLayerDataPtr(physicalDevice, device_profile_api_dev_data_map);
     layer_data *instance_data = GetLayerDataPtr(phy_dev_data->instance, device_profile_api_dev_data_map);
@@ -384,26 +379,34 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetInstanceProcAddr(VkInstance instance
 
 }  // namespace device_profile_api
 
-VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(uint32_t *pCount,
-                                                                                  VkLayerProperties *pProperties) {
+#if defined(__GNUC__) && __GNUC__ >= 4
+#define VVL_EXPORT __attribute__((visibility("default")))
+#else
+#define VVL_EXPORT
+#endif
+
+// The following functions need to match the `/DEF` and `--version-script` file
+// for consistency across platforms that don't accept those linker options.
+extern "C" {
+
+VVL_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(uint32_t *pCount, VkLayerProperties *pProperties) {
     return device_profile_api::EnumerateInstanceLayerProperties(pCount, pProperties);
 }
 
-VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char *pLayerName, uint32_t *pCount,
-                                                                                      VkExtensionProperties *pProperties) {
+VVL_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char *pLayerName, uint32_t *pCount,
+                                                                                 VkExtensionProperties *pProperties) {
     return device_profile_api::EnumerateInstanceExtensionProperties(pLayerName, pCount, pProperties);
 }
 
-VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char *funcName) {
+VVL_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char *funcName) {
     return device_profile_api::GetInstanceProcAddr(instance, funcName);
 }
 
-VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_layerGetPhysicalDeviceProcAddr(VkInstance instance,
-                                                                                           const char *funcName) {
+VVL_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_layerGetPhysicalDeviceProcAddr(VkInstance instance, const char *funcName) {
     return device_profile_api::GetPhysicalDeviceProcAddr(instance, funcName);
 }
 
-VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface *pVersionStruct) {
+VVL_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface *pVersionStruct) {
     assert(pVersionStruct != NULL);
     assert(pVersionStruct->sType == LAYER_NEGOTIATE_INTERFACE_STRUCT);
 
@@ -422,3 +425,5 @@ VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVe
 
     return VK_SUCCESS;
 }
+
+}  // extern "C"
