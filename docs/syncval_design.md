@@ -1,0 +1,1 @@
+[Documentation link was moved](./synchronization_design.md)

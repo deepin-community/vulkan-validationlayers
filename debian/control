@@ -4,16 +4,17 @@ Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Timo Aaltonen <tjaalton@debian.org>
 Build-Depends: debhelper-compat (= 12),
  cmake,
- glslang-dev (>= 12.0.0),
- libvulkan-dev (>= 1.3.239.0),
+ glslang-dev (>= 15.1.0+1.4.309.0),
+ libvulkan-dev (>= 1.4.309.0),
  libwayland-dev,
  libx11-dev,
  libxrandr-dev,
  pkg-config,
  python3,
- spirv-headers (>= 1.6.1+1.3.239.0),
- spirv-tools (>= 2023.1),
-Standards-Version: 4.5.0
+ spirv-headers (>= 1.6.1+1.4.309.0),
+ spirv-tools (>= 2025.1~rc1~),
+ vulkan-utility-libraries-dev (>= 1.4.309.0),
+Standards-Version: 4.6.2
 Section: libs
 Homepage: https://github.com/KhronosGroup/Vulkan-ValidationLayers
 Vcs-Git: https://salsa.debian.org/xorg-team/vulkan/vulkan-validationlayers.git
@@ -31,20 +32,3 @@ Description: Vulkan validation layers
  This project provides the Khronos official Vulkan validation layers.
  .
  This package includes the loader library.
-
-Package: vulkan-validationlayers-dev
-Section: libdevel
-Architecture: linux-any
-Depends:
- vulkan-validationlayers (= ${binary:Version}),
- libxxhash-dev,
- ${misc:Depends},
-Breaks:
- libvulkan-dev (<< 1.1.82.0),
-Replaces:
- libvulkan-dev (<< 1.1.82.0),
-Multi-Arch: same
-Description: Vulkan validation layers -- development files
- This project provides the Khronos official Vulkan validation layers.
- .
- This package includes files needed for development.

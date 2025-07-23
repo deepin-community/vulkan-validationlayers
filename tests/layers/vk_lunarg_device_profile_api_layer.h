@@ -1,7 +1,7 @@
 /*
  *
- * Copyright (c) 2016-2022 Valve Corporation
- * Copyright (c) 2016-2022 LunarG, Inc.
+ * Copyright (c) 2016-2023 Valve Corporation
+ * Copyright (c) 2016-2023 LunarG, Inc.
  * Copyright (c) 2016-2022 The Khronos Group Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * Author: Arda Coskunses <arda@lunarg.com>
- *
  */
 
-#ifndef __VK_DEVICE_PROFILE_API_H__
-#define __VK_DEVICE_PROFILE_API_H__
+#pragma once
 
 #include "vulkan/vulkan.h"
 #ifdef __cplusplus
@@ -54,5 +50,3 @@ typedef void(VKAPI_PTR *PFN_VkSetPhysicalDeviceProperties2EXT)(VkPhysicalDevice 
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
-
-#endif  // __VK_DEVICE_PROFILE_API_H__
