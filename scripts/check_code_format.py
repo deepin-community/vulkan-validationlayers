@@ -1,6 +1,6 @@
-#!/usr/bin/env python
-# Copyright (c) 2020-2023 Valve Corporation
-# Copyright (c) 2020-2023 LunarG, Inc.
+#!/usr/bin/env python3
+# Copyright (c) 2020-2025 Valve Corporation
+# Copyright (c) 2020-2025 LunarG, Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Author: Mark Lobodzinski <mark@lunarg.com>
-# Author: Mike Schuchardt <mikes@lunarg.com>
-# Author: Nathaniel Cesario <nathaniel@lunarg.com>
-# Author: Karl Schultz <karl@lunarg.com>
-# Author: Tony Barbour <tony@lunarg.com>
 
 # Script to determine if source code in Pull Request is properly formatted.
 #
@@ -26,30 +20,28 @@
 #   -- clang-format errors in the PR source code
 #   -- out-of-date copyrights in PR source files
 #   -- improperly formatted commit messages (using the function above)
-#   -- assigning stype instead of using LvlInitStruct
+#   -- assigning stype instead of using vku::InitStruct
 #
 # Notes:
 #    Exits with non 0 exit code if formatting is needed.
 #    Requires python3 to run correctly
-#    In standalone mode (outside of CI), changes must be rebased on master
+#    In standalone mode (outside of CI), changes must be rebased on main
 #        to get meaningful and complete results
 
 import os
 import argparse
-import difflib
 import re
 import subprocess
-import sys
 from subprocess import check_output
-from datetime import date
 from argparse import RawDescriptionHelpFormatter
 
-os.system("")
+def repo_relative(path):
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', path))
+
 #
 #
 # Color print routine, takes a string matching a txtcolor above and the output string, resets color upon exit
 def CPrint(msg_type, msg_string):
-    color = '\033[0m'
     txtcolors = {'HELP_MSG':    '\033[0;36m',
                  'SUCCESS_MSG': '\033[1;32m',
                  'CONTENT':     '\033[1;39m',
@@ -68,7 +60,7 @@ def VerifyClangFormatSource(commit, target_files):
     retval = 0
     if diff_files != '':
         git_diff = subprocess.Popen(('git', 'diff', '-U0', target_refspec, '--', diff_files), stdout=subprocess.PIPE)
-        diff_files_data = subprocess.check_output(('python3', './scripts/clang-format-diff.py', '-p1', '-style=file'), stdin=git_diff.stdout)
+        diff_files_data = subprocess.check_output(('python3', repo_relative('scripts/clang-format-diff.py'), '-p1', '-style=file'), stdin=git_diff.stdout)
         diff_files_data = diff_files_data.decode('utf-8')
         if diff_files_data != '':
             CPrint('ERR_MSG', "\nFound formatting errors!")
@@ -103,22 +95,25 @@ def VerifyCopyrights(commit, target_files):
         if not commit_year or int(commit_year) < int(year):
             commit_year = year.decode('utf-8')
     for file in target_files:
-        if file is None or not os.path.isfile(file):
+        if file is None:
+            continue
+        file_path = repo_relative(file)
+        if not os.path.isfile(file_path):
             continue
         for company in ["LunarG", "Valve"]:
             # Capture the last year on the line as a separate match. It should be the highest (or only year of the range)
-            copyright_match = re.search('Copyright .*(\d{4}) ' + company, open(file, encoding="utf-8", errors='ignore').read(1024))
+            copyright_match = re.search('Copyright .*(\d{4}) ' + company, open(file_path, encoding="utf-8", errors='ignore').read(1024))
             if copyright_match:
                 copyright_year = copyright_match.group(1)
                 if int(commit_year) > int(copyright_year):
-                    msg = 'Change written in {} but copyright ends in {}.'.format(commit_year, copyright_year)
-                    CPrint('ERR_MSG', '\n' + file + ' has an out-of-date ' + company + ' copyright notice. ' + msg)
+                    msg = f'Change written in {commit_year} but copyright ends in {copyright_year}.'
+                    CPrint('ERR_MSG', f'\n{file_path} has an out-of-date {company} copyright notice. {msg}')
                     retval = 1
     return retval
 #
 #
 # Check commit message formats for commits in this PR/Branch
-def VerifyCommitMessageFormat(commit, target_files):
+def VerifyCommitMessageFormat(commit):
     retval = 0
 
     # Construct correct commit list
@@ -136,12 +131,12 @@ def VerifyCommitMessageFormat(commit, target_files):
             # Enforce subject line must be 64 chars or less
             if line_length > 64:
                 CPrint('ERR_MSG', "The following subject line exceeds 64 characters in length.")
-                CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                CPrint('CONTENT', f"     '{msg_line_text}'\n")
                 retval = 1
             # Output error if last char of subject line is not alpha-numeric
             if msg_line_text[-1] in '.,':
                 CPrint('ERR_MSG', "For the following commit, the last character of the subject line must not be a period or comma.")
-                CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                CPrint('CONTENT',  f"     '{msg_line_text}'\n")
                 retval = 1
             # Output error if subject line doesn't start with 'module: '
             if 'Revert' not in msg_line_text:
@@ -150,31 +145,31 @@ def VerifyCommitMessageFormat(commit, target_files):
                     CPrint('ERR_MSG', "The following subject line must start with a single word specifying the functional area of the change, followed by a colon and space.")
                     CPrint('ERR_MSG', "e.g., 'layers: Subject line here' or 'corechecks: Fix off-by-one error in ValidateFences'.")
                     CPrint('ERR_MSG', "Other common module names include layers, build, cmake, tests, docs, scripts, stateless, gpu, syncval, practices, etc.")
-                    CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                    CPrint('CONTENT',  f"     '{msg_line_text}'\n")
                     retval = 1
                 else:
                     # Check if first character after the colon is lower-case
                     subject_body = msg_line_text.split(': ')[1]
                     if not subject_body[0].isupper():
                         CPrint('ERR_MSG', "The first word of the subject line after the ':' character must be capitalized.")
-                        CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                        CPrint('CONTENT',  f"     '{msg_line_text}'\n")
                         retval = 1
             # Check that first character of subject line is not capitalized
             if msg_line_text[0].isupper():
                 CPrint('ERR_MSG', "The first word of the subject line must be lower case.")
-                CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                CPrint('CONTENT', f"     '{msg_line_text}'\n")
                 retval = 1
         elif msg_cur_line == 2:
             # Commit message must have a blank line between subject and body
             if line_length != 0:
                 CPrint('ERR_MSG', "The following subject line must be followed by a blank line.")
-                CPrint('CONTENT', "     '" + msg_prev_line + "'\n")
+                CPrint('CONTENT', f"     '{msg_prev_line}'\n")
                 retval = 1
         else:
             # Lines in a commit message body must be less than 72 characters in length (but give some slack)
             if line_length > 76:
                 CPrint('ERR_MSG', "The following commit message body line exceeds the 72 character limit.")
-                CPrint('CONTENT', "     '" + msg_line_text + "'\n")
+                CPrint('CONTENT', f"     '{msg_line_text}'\n")
                 retval = 1
         msg_prev_line = msg_line_text
     if retval != 0:
@@ -193,12 +188,12 @@ def VerifyCommitMessageFormat(commit, target_files):
         CPrint('HELP_MSG', "     state_tracker: Remove 'using std::*' statements")
         CPrint('HELP_MSG', "     stateless: Account for DynStateWithCount for multiViewport\n")
         CPrint('HELP_MSG', "Refer to this document for additional detail:")
-        CPrint('HELP_MSG', "https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/master/CONTRIBUTING.md#coding-conventions-and-formatting")
+        CPrint('HELP_MSG', "https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/main/CONTRIBUTING.md#coding-conventions-and-formatting")
     return retval
 
 #
 #
-# Check for test code assigning sType instead of using LvlInitStruct in this PR/Branch
+# Check for test code assigning sType instead of using vku::InitStruc in this PR/Branch
 def VerifyTypeAssign(commit, target_files):
     retval = 0
     target_refspec = f'{commit}^...{commit}'
@@ -220,8 +215,8 @@ def VerifyTypeAssign(commit, target_files):
                 if off_regex.search(line, re.IGNORECASE):
                     checking = False
                 elif stype_regex.search(line):
-                    CPrint('ERR_MSG', "Test assigning sType instead of using LvlInitStruct")
-                    CPrint('ERR_MSG', "If this is a case where LvlInitStruct cannot be used, //stype-check off can be used to turn off sType checking")
+                    CPrint('ERR_MSG', "Test assigning sType instead of using vku::InitStruct")
+                    CPrint('ERR_MSG', "If this is a case where vku::InitStruct cannot be used, //stype-check off can be used to turn off sType checking")
                     CPrint('CONTENT', "     '" + line + "'\n")
                     retval = 1
             else:
@@ -232,24 +227,20 @@ def VerifyTypeAssign(commit, target_files):
 #
 # Entrypoint
 def main():
-    DEFAULT_REFSPEC = 'origin/master'
+    DEFAULT_REFSPEC = 'origin/main'
 
-    parser = argparse.ArgumentParser(description='''Usage: python3 ./scripts/check_code_format.py
-    - Reqires python3 and clang-format 7.0+
+    parser = argparse.ArgumentParser(description='''Usage: python ./scripts/check_code_format.py
+    - Reqires python3 and clang-format
     - Run script in repo root
     - May produce inaccurate clang-format results if local branch is not rebased on the TARGET_REFSPEC
     ''', formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('--target-refspec', metavar='TARGET_REFSPEC', type=str, dest='target_refspec', help = 'Refspec to '
-        + 'diff against (default is origin/master)', default=DEFAULT_REFSPEC)
+        + 'diff against (default is origin/main)', default=DEFAULT_REFSPEC)
     parser.add_argument('--base-refspec', metavar='BASE_REFSPEC', type=str, dest='base_refspec', help = 'Base refspec to '
         + ' compare (default is HEAD)', default='HEAD')
-    parser.add_argument('--fetch-main', dest='fetch_main', action='store_true', help='Fetch the master branch first.'
-        + ' Useful with --target-refspec=FETCH_HEAD to compare against what is currently on master')
+    parser.add_argument('--fetch-main', dest='fetch_main', action='store_true', help='Fetch the main branch first.'
+        + ' Useful with --target-refspec=FETCH_HEAD to compare against what is currently on main')
     args = parser.parse_args()
-
-    if sys.version_info[0] != 3:
-        print("This script requires Python 3. Run script with [-h] option for more details.")
-        exit()
 
     if os.path.isfile('check_code_format.py'):
         os.chdir('..')
@@ -258,14 +249,14 @@ def main():
     base_refspec = args.base_refspec
 
     if args.fetch_main:
-        print('Fetching master branch...')
-        subprocess.check_call(['git', 'fetch', 'https://github.com/KhronosGroup/Vulkan-ValidationLayers.git', 'master'])
+        print('Fetching main branch...')
+        subprocess.check_call(['git', 'fetch', 'https://github.com/KhronosGroup/Vulkan-ValidationLayers.git', 'main'])
 
     # Check if this is a merge commit
     commit_parents = check_output(['git', 'rev-list', '--parents', '-n', '1', 'HEAD'])
     if len(commit_parents.split(b' ')) > 2:
-        # If this is a merge commit, this is a PR being built, and has been merged into master for testing.
-        # The first parent (HEAD^) is going to be master, the second parent (HEAD^2) is going to be the PR commit.
+        # If this is a merge commit, this is a PR being built, and has been merged into main for testing.
+        # The first parent (HEAD^) is going to be main, the second parent (HEAD^2) is going to be the PR commit.
         # TODO (ncesario) We should *ONLY* get here when on github CI, building a PR. Should probably print a
         #      warning if this happens locally.
         target_refspec = 'HEAD^'
@@ -286,7 +277,6 @@ def main():
 
         commit = c.decode('utf-8')
         diff_range = f'{commit}^...{commit}'
-        rdiff_range = f'{commit}...{commit}^'
 
         commit_message = check_output(['git', 'log', '--pretty="%h %s"', diff_range])
         CPrint('CONTENT', "\nChecking commit: " + commit_message.decode('utf-8'))
@@ -298,9 +288,18 @@ def main():
         target_files = target_files_data.decode('utf-8')
         target_files = target_files.split("\n")
 
+        # Exceptions of files we don't want to check (TODO - need better way to do this)
+        if 'layers/external/vma/vk_mem_alloc.h' in target_files:
+            target_files.remove('layers/external/vma/vk_mem_alloc.h')
+
+        # Skip checking dependabot commits
+        authors = subprocess.check_output(['git', 'log', '-n' , '1', '--format=%ae', commit]).decode('utf-8')
+        if "dependabot" in authors:
+            continue
+
         failure |= VerifyClangFormatSource(commit, target_files)
         failure |= VerifyCopyrights(commit, target_files)
-        failure |= VerifyCommitMessageFormat(commit, target_files)
+        failure |= VerifyCommitMessageFormat(commit)
         failure |= VerifyTypeAssign(commit, target_files)
 
     subprocess.run(['git', 'checkout', '-q', orig_branch])
